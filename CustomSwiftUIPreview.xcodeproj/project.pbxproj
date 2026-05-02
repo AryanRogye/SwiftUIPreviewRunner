@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		9B7AB58C2FA57AD300447A5B /* TextEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 9B7AB58B2FA57AD300447A5B /* TextEditor */; };
+		9B7AB8D52FA696EC00447A5B /* MLXKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9B7AB8D42FA696EC00447A5B /* MLXKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				9B7AB58C2FA57AD300447A5B /* TextEditor in Frameworks */,
+				9B7AB8D52FA696EC00447A5B /* MLXKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = CustomSwiftUIPreview;
 			packageProductDependencies = (
 				9B7AB58B2FA57AD300447A5B /* TextEditor */,
+				9B7AB8D42FA696EC00447A5B /* MLXKit */,
 			);
 			productName = CustomSwiftUIPreview;
 			productReference = 9B7AB57C2FA57AC500447A5B /* CustomSwiftUIPreview.app */;
@@ -102,6 +105,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				9B7AB58A2FA57AD300447A5B /* XCRemoteSwiftPackageReference "TextEditor" */,
+				9B7AB8D32FA696EC00447A5B /* XCRemoteSwiftPackageReference "MLXKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9B7AB57D2FA57AC500447A5B /* Products */;
@@ -350,6 +354,14 @@
 				kind = branch;
 			};
 		};
+		9B7AB8D32FA696EC00447A5B /* XCRemoteSwiftPackageReference "MLXKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AryanRogye/MLXKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -357,6 +369,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9B7AB58A2FA57AD300447A5B /* XCRemoteSwiftPackageReference "TextEditor" */;
 			productName = TextEditor;
+		};
+		9B7AB8D42FA696EC00447A5B /* MLXKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9B7AB8D32FA696EC00447A5B /* XCRemoteSwiftPackageReference "MLXKit" */;
+			productName = MLXKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
