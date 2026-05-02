@@ -50,7 +50,12 @@ private struct ToolMessageRow: View {
             }
         } label: {
             HStack {
-                Text("Used \(message.functionName)")
+                if message.result == nil {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                
+                Text(message.result == nil ? "Using \(message.functionName)" : "Used \(message.functionName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)

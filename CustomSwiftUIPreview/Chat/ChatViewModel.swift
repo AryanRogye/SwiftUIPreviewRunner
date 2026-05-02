@@ -42,6 +42,9 @@ final class ChatViewModel {
     private var observationTask: Task<Void, Never>?
     private var backgroundObserver: NSObjectProtocol?
     private var foregroundObserver: NSObjectProtocol?
+    private var swiftUIViewBodyWriter: ((String) -> Void)?
+    private var swiftUIViewBodyReader: (() -> String)?
+    private var activeToolCallCount = 0
     
     /**
      * Internal Service lets us talk to the MLX Model thats loaded
@@ -62,6 +65,24 @@ final class ChatViewModel {
     deinit {
         if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
         if let foregroundObserver { NotificationCenter.default.removeObserver(foregroundObserver) }
+    }
+}
+
+// MARK: - Editor Tools
+extension ChatViewModel {
+    /**
+     * Gives the chat model one narrow capability:
+     * replace the text inside the SwiftUI editor.
+     *
+     * This intentionally does not expose compile, shell, filesystem,
+     * or process execution. The model can only propose source text.
+     */
+    public func setSwiftUIViewBodyAccess(
+        reader: @escaping () -> String,
+        writer: @escaping (String) -> Void
+    ) {
+        swiftUIViewBodyReader = reader
+        swiftUIViewBodyWriter = writer
     }
 }
 
@@ -113,7 +134,31 @@ extension ChatViewModel {
 // MARK: - Loading Model
 extension ChatViewModel {
     static let systemPrompt = """
-                              hello
+                              You are the SwiftUI editor assistant inside CustomSwiftUIPreview.
+                              
+                              Your job is to help the user create or revise the SwiftUI source shown in the editor.
+                              
+                              Important rules:
+                              - Write complete Swift source for the editor when the user asks for UI changes.
+                              - Use the getCurrentSwiftUIViewBody tool when you need to inspect the current editor text before editing.
+                              - Use the writeSwiftUIViewBody tool to update the editor text.
+                              - Do not include Markdown code fences in tool arguments.
+                              - Do not generate an @main App, Scene, WindowGroup, UIApplicationDelegate, or app lifecycle entrypoint.
+                              - The preview host creates the app wrapper for you. The editor source should define a SwiftUI View, usually struct ContentView: View.
+                              - Start with import SwiftUI unless the user's requested code clearly needs other available imports.
+                              - Assume normal SwiftUI and project dependencies are available from the preview build environment.
+                              - Do not ask to run shell commands, inspect files, compile, or execute code. You only have permission to read and write editor text.
+                              - If the user asks for something unsafe or unrelated to SwiftUI source generation, answer in chat without using a tool.
+                              
+                              Good output shape for the editor:
+                              
+                              import SwiftUI
+                              
+                              struct ContentView: View {
+                                  var body: some View {
+                                      Text("Hello")
+                                  }
+                              }
                               """
     
     
@@ -159,6 +204,7 @@ extension ChatViewModel {
         
         /// set flag to true
         sendingMessage = true
+        activeToolCallCount = 0
         
         /// Creates Users Message
         self.addUserMessage(trimmed)
@@ -169,7 +215,9 @@ extension ChatViewModel {
             /// at end set the false
             defer {
                 Task { @MainActor in
-                    self.sendingMessage = false
+                    if self.activeToolCallCount == 0 {
+                        self.sendingMessage = false
+                    }
                 }
             }
             
@@ -181,13 +229,14 @@ extension ChatViewModel {
                 let modelMessages = messages
                     .filter { $0.id != assistantID }
                     .compactMap { $0 as? ChatMessage }
-                    .map { ModelMessage(role: $0.role, content: $0.content) }
+                    .filter { $0.role != .system } // Exclude debug messages
+                    .map { ModelMessage(role: $0.role, content: $0.content, toolCalls: $0.toolCalls) }
                 
                 let _ = try await mlxChatService.getResponse(
                     messages: modelMessages,
                     tools: [
-                        Self.sendCommandToTerminalTool,
-                        Self.getCurrentTerminalShapshot
+                        Self.getCurrentSwiftUIViewBodyTool,
+                        Self.writeSwiftUIViewBodyTool
                     ],
                     completion: { [weak self] (snippet: String) in
                         guard let self else { return }
@@ -200,7 +249,20 @@ extension ChatViewModel {
                     },
                     toolcallCompletionHandler: { toolcallResponse in
                         Task { @MainActor in
-                            try await self.handleToolCall(toolcallResponse)
+                            self.activeToolCallCount += 1
+                            defer {
+                                self.activeToolCallCount -= 1
+                                if self.activeToolCallCount == 0 {
+                                    self.sendingMessage = false
+                                }
+                            }
+                            
+                            do {
+                                try await self.handleToolCall(toolcallResponse)
+                            } catch {
+                                self.error = error.localizedDescription
+                                self.showError = true
+                            }
                         }
                     },
                     infoCompletionHandler: { info in
@@ -228,13 +290,14 @@ extension ChatViewModel {
 
 // MARK: - Tools
 extension ChatViewModel {
-    static let getCurrentTerminalShapshot: [String: any Sendable] = [
+    static let getCurrentSwiftUIViewBodyTool: [String: any Sendable] = [
         "type": "function",
         "function": [
-            "name": "getCurrentTerminalShapshot",
+            "name": "getCurrentSwiftUIViewBody",
             "description": """
-                            this gets the current terminal shapshot, 
-                            you should use this if anything is unclear in the users question
+                            Read the current SwiftUI source text from the editor.
+                            Use this before editing when the user refers to the existing view,
+                            asks for a small change, or says things like current, this, it, or now.
                             """,
             "parameters": [
                 "type": "object",
@@ -244,20 +307,27 @@ extension ChatViewModel {
         ] as [String: any Sendable]
     ]
     
-    static let sendCommandToTerminalTool: [String: any Sendable] = [
+    static let writeSwiftUIViewBodyTool: [String: any Sendable] = [
         "type": "function",
         "function": [
-            "name": "sendCommandToTerminal",
-            "description": "send command to terminal to get back a output",
+            "name": "writeSwiftUIViewBody",
+            "description": """
+                            Replace the SwiftUI editor contents with complete SwiftUI source code.
+                            Use this when the user asks you to create, rewrite, or update the preview view.
+                            Do not include Markdown fences. Return only valid Swift source text.
+                            """,
             "parameters": [
                 "type": "object",
                 "properties": [
-                    "command": [
+                    "text": [
                         "type": "string",
-                        "description": "The command you want to run in the terminal"
+                        "description": """
+                                       Complete Swift source for the preview editor. It should import SwiftUI
+                                       and define one View struct, for example struct ContentView: View.
+                                       """
                     ] as [String: any Sendable]
                 ] as [String: any Sendable],
-                "required": ["command"]
+                "required": ["text"]
             ] as [String: any Sendable]
         ] as [String: any Sendable]
     ]
@@ -270,13 +340,22 @@ extension ChatViewModel {
         depth: Int = 0
     ) async throws {
         
-        let maxDepth = 10
+        let maxDepth = 3
         
         guard depth < maxDepth else {
             return
         }
         
         let function = response.functionName
+        
+        /// Add the assistant's tool-call turn to the conversation history
+        /// so the chat template sees: user → assistant(tool_call) → tool(result)
+        let assistantToolCallMsg = ChatMessage(
+            role: .assistant,
+            content: "",
+            toolCalls: response.rawToolCall.map { [$0] }
+        )
+        messages.append(assistantToolCallMsg)
         
         /// This is important because we need the id to send back the content
         /// once we get it
@@ -288,6 +367,17 @@ extension ChatViewModel {
         messages.append(message)
         
         switch function {
+        case "getCurrentSwiftUIViewBody":
+            let result = getCurrentSwiftUIViewBody()
+            updateToolCall(id: message.id, result: result)
+            try await respondToToolResult(
+                result,
+                label: "current SwiftUI editor text",
+                depth: depth
+            )
+        case "writeSwiftUIViewBody":
+            let result = writeSwiftUIViewBody(arguments: response.arguments)
+            updateToolCall(id: message.id, result: result)
         default:
             break
         }
@@ -298,29 +388,27 @@ extension ChatViewModel {
         label: String,
         depth: Int
     ) async throws {
-        let message = ChatMessage(
-            role: .user,
-            content: """
-                    The Terminal Output For \(label) is
-                    \(response)
-                    
-                    Use this information to answer the question.
-                    """
+        /// Add the tool result with proper "tool" role so the chat template
+        /// sees the correct: assistant(tool_call) → tool(result) alternation.
+        let toolResultMessage = ChatMessage(
+            role: .tool,
+            content: response
         )
+        messages.append(toolResultMessage)
         
         let assistantID = UUID()
-        var modelMessages = messages
+        
+        let modelMessages = messages
             .filter { $0.id != assistantID }
             .compactMap { $0 as? ChatMessage }
-            .map { ModelMessage(role: $0.role, content: $0.content) }
-        
-        modelMessages.append(ModelMessage(role: message.role, content: message.content))
+            .filter { $0.role != .system } // Exclude debug messages
+            .map { ModelMessage(role: $0.role, content: $0.content, toolCalls: $0.toolCalls) }
         
         let _ = try await mlxChatService.getResponse(
             messages: modelMessages,
             tools: [
-                Self.sendCommandToTerminalTool,
-                Self.getCurrentTerminalShapshot
+                Self.getCurrentSwiftUIViewBodyTool,
+                Self.writeSwiftUIViewBodyTool
             ],
             completion: { [weak self] (snippet: String) in
                 guard let self else { return }
@@ -333,7 +421,20 @@ extension ChatViewModel {
             },
             toolcallCompletionHandler: { toolcallResponse in
                 Task { @MainActor in
-                    try await self.handleToolCall(toolcallResponse, depth: depth + 1)
+                    self.activeToolCallCount += 1
+                    defer {
+                        self.activeToolCallCount -= 1
+                        if self.activeToolCallCount == 0 {
+                            self.sendingMessage = false
+                        }
+                    }
+                    
+                    do {
+                        try await self.handleToolCall(toolcallResponse, depth: depth + 1)
+                    } catch {
+                        self.error = error.localizedDescription
+                        self.showError = true
+                    }
                 }
             },
             infoCompletionHandler: { info in
@@ -342,6 +443,35 @@ extension ChatViewModel {
                 }
             }
         )
+    }
+    
+    private func getCurrentSwiftUIViewBody() -> String {
+        guard let reader = swiftUIViewBodyReader else {
+            return "Editor reader is not connected yet."
+        }
+        
+        return reader()
+    }
+    
+    private func writeSwiftUIViewBody(arguments: [String: JSONValue]) -> String {
+        guard let writer = swiftUIViewBodyWriter else {
+            return "Editor writer is not connected yet."
+        }
+        
+        guard let text = arguments["text"]?.stringValue else {
+            return "Missing required string argument: text."
+        }
+        
+        writer(text)
+        return "Updated the SwiftUI editor text."
+    }
+}
+
+// MARK: - JSON Helpers
+private extension JSONValue {
+    var stringValue: String? {
+        guard case .string(let value) = self else { return nil }
+        return value
     }
 }
 

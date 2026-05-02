@@ -45,11 +45,19 @@ public class ChatMessage: MessageRepresentable, Sendable {
     public var id: UUID
     public let role: Role
     public var content: String
+    /// Raw tool_calls payload for assistant messages that invoke tools.
+    public var toolCalls: [[String: any Sendable]]?
     
-    public init(id: UUID = UUID(), role: Role, content: String) {
+    public init(
+        id: UUID = UUID(),
+        role: Role,
+        content: String,
+        toolCalls: [[String: any Sendable]]? = nil
+    ) {
         self.id = id
         self.role = role
         self.content = content
+        self.toolCalls = toolCalls
     }
     
     public static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {

@@ -14,14 +14,14 @@ struct ContentView: View {
     
     @State private var chatVM = ChatViewModel()
     @State private var loaderService = ModelLoaderService()
-    @State private var sendingMessage = false
     @State private var loading = false
     @State private var vm = ViewModel()
+    @State private var editorID = UUID()
     
     var body: some View {
         VStack {
             HSplitView {
-                ChatSidebar(vm: chatVM, sendingMessage: $sendingMessage)
+                ChatSidebar(vm: chatVM)
                 
                 ComfyTextEditor(
                     text: $vm.text,
@@ -29,13 +29,14 @@ struct ContentView: View {
                     allowEdit: $vm.allowEdit,
                     isInVimMode: $vm.vimEnabled
                 )
+                .id(editorID)
                 
                 VSplitView {
                     PreviewHostView(previewView: vm.previewView)
                         .frame(minWidth: 360, minHeight: 320)
                     
                     List {
-                        ForEach(vm.logs, id: \.self) { log in
+                        ForEach(Array(vm.logs.enumerated()), id: \.offset) { _, log in
                             Text(log)
                                 .textSelection(.enabled)
                         }
@@ -63,6 +64,14 @@ struct ContentView: View {
             }
         }
         .task {
+            chatVM.setSwiftUIViewBodyAccess(
+                reader: { vm.text },
+                writer: { text in
+                    vm.text = text
+                    editorID = UUID()
+                }
+            )
+            
             if let selected = loaderService.selected {
                 loadModel(model: selected)
             }

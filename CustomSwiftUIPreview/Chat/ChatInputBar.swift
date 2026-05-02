@@ -115,15 +115,23 @@ public struct ChatInputBar: View {
         Button {
             submitText()
         } label: {
-            TalkToModelButton(
-                showArrow: Binding(
-                    get: { !text.isEmpty },
-                    set: { _ in }
+            if sendingMessage {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 30, height: 30)
+                    .padding(10)
+            } else {
+                TalkToModelButton(
+                    showArrow: Binding(
+                        get: { !text.isEmpty },
+                        set: { _ in }
+                    )
                 )
-            )
+            }
         }
         .buttonStyle(.plain)
         .frame(width: 50, height: 50)
+        .disabled(sendingMessage)
     }
     
     private func submitText() {

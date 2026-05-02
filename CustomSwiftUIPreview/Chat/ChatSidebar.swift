@@ -10,13 +10,17 @@ import SwiftUI
 struct ChatSidebar: View {
     
     @Bindable var vm: ChatViewModel
-    @Binding var sendingMessage: Bool
     
     var body: some View {
         VStack {
             ChatListView(chatVM: vm)
                 .safeAreaInset(edge: .bottom) {
-                    ChatInputBar(sendingMessage: $sendingMessage) { text in
+                    ChatInputBar(
+                        sendingMessage: Binding(
+                            get: { vm.sendingMessage },
+                            set: { vm.sendingMessage = $0 }
+                        )
+                    ) { text in
                         vm.send(text)
                     }
                 }
