@@ -11,21 +11,70 @@ import AppKit
 @Observable
 @MainActor
 class ViewModel {
+    
     var text: String = """
-        import SwiftUI 
+    
+    import SwiftUI
+    
+    struct ContentView: View {
+        @State private var isOn = true
+        @State private var progress = 0.68
         
-        struct ContentView: View {
-            var body: some View {
-                VStack {
-                    Image(systemName: "globe")
-                        .imageScale(.large)
-                        .foregroundStyle(.tint)
-                    Text("Hello, world!")
+        var body: some View {
+            ZStack {
+                LinearGradient(
+                    colors: [.black, .indigo.opacity(0.8), .purple.opacity(0.5)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                VStack(spacing: 22) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 52, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .shadow(radius: 20)
+                    
+                    Text("Comfy Preview")
+                        .font(.system(size: 38, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    
+                    Text("SwiftUI compiled from a tiny generated preview app.")
+                        .font(.headline)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                    
+                    Toggle("Live Preview Mode", isOn: $isOn)
+                        .toggleStyle(.switch)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                    
+                    ProgressView(value: progress)
+                        .frame(width: 260)
+                    
+                    Button {
+                        progress = progress >= 1 ? 0 : min(progress + 0.1, 1)
+                    } label: {
+                        Text("Cook")
+                            .font(.headline)
+                            .padding(.horizontal, 34)
+                            .padding(.vertical, 12)
+                            .background(.white)
+                            .foregroundStyle(.black)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .padding()
+                .padding(40)
             }
         }
-        """
+    }
+    """
+    
     var magnification: CGFloat = 1.0
     var allowEdit = true
     var vimEnabled = true
@@ -131,6 +180,7 @@ class ViewModel {
             return
         }
         
+        print("Full Path URL: \(swiftUIPreviewFolder.path)")
         NSWorkspace.shared.open(swiftUIPreviewFolder.appendingPathComponent("Package.swift"))
     }
 }
@@ -188,7 +238,10 @@ extension ViewModel {
         let package = Package(
             name: "\(PackageName)",
             platforms: [
-                .macOS(.v15)
+                /// Most Likely Fine
+                .macOS(.v15),
+                /// Change This To Whatever Needed
+                .iOS(.v17)
             ],
             products: [
                 .executable(
