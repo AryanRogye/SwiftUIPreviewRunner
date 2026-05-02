@@ -6,8 +6,6 @@
 //
 
 import Foundation
-import MLXLMCommon
-import MLXKit
 
 public protocol MessageRepresentable: Identifiable, Equatable {
     var id: UUID { get set }
@@ -17,7 +15,7 @@ public protocol MessageRepresentable: Identifiable, Equatable {
 public class ToolMessage: MessageRepresentable, Sendable {
     public var id: UUID
     public let functionName: String
-    public let arguments : [String: JSONValue]
+    public let arguments : [String: String]
     
     /// Result for ToolCall
     public var result: String?
@@ -32,11 +30,17 @@ public class ToolMessage: MessageRepresentable, Sendable {
         self.arguments = [:]
     }
     
-    public init(id: UUID = UUID(), functionName: String, arguments: [String : JSONValue]) {
+    public init(id: UUID = UUID(), functionName: String, arguments: [String : String]) {
         self.id = id
         self.functionName = functionName
         self.arguments = arguments
     }
+}
+
+public enum Role: String, Equatable, Sendable {
+    case user
+    case assistant
+    case system
 }
 
 @Observable
@@ -45,19 +49,15 @@ public class ChatMessage: MessageRepresentable, Sendable {
     public var id: UUID
     public let role: Role
     public var content: String
-    /// Raw tool_calls payload for assistant messages that invoke tools.
-    public var toolCalls: [[String: any Sendable]]?
     
     public init(
         id: UUID = UUID(),
         role: Role,
-        content: String,
-        toolCalls: [[String: any Sendable]]? = nil
+        content: String
     ) {
         self.id = id
         self.role = role
         self.content = content
-        self.toolCalls = toolCalls
     }
     
     public static func == (lhs: ChatMessage, rhs: ChatMessage) -> Bool {

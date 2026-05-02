@@ -8,13 +8,10 @@
 import SwiftUI
 import TextEditor
 import AppKit
-import MLXKit
 
 struct ContentView: View {
     
     @State private var chatVM = ChatViewModel()
-    @State private var loaderService = ModelLoaderService()
-    @State private var loading = false
     @State private var vm = ViewModel()
     @State private var editorID = UUID()
     
@@ -54,7 +51,14 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                NavigationLink(destination: ModelsInfoView(loaderService: loaderService)) { Image(systemName: "arrow.down.circle") }
+                Picker("Codex Model", selection: $chatVM.selectedModel) {
+                    ForEach(CodexModel.allCases) { model in
+                        Text(model.displayName).tag(model)
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(chatVM.sendingMessage)
+                
                 Button(vm.allowEdit ? "Disable Edit" : "Allow Edit") { vm.allowEdit.toggle() }
                 Button(vm.vimEnabled ? "Disable Vim" : "Enable Vim") { vm.vimEnabled.toggle() }
                 Button { vm.compile() } label: {
@@ -71,29 +75,6 @@ struct ContentView: View {
                     editorID = UUID()
                 }
             )
-            
-            if let selected = loaderService.selected {
-                loadModel(model: selected)
-            }
-        }
-        .onChange(of: loaderService.selected) { _, newValue in
-            if let newValue {
-                loadModel(model: newValue)
-            }
-        }
-    }
-    
-    /**
-     * Helper to load model once a model is selected
-     */
-    private func loadModel(model: MLXChatModel) {
-        if loading { return }
-        
-        Task {
-            loading = true
-            defer { loading = false }
-            
-            await chatVM.load(model.url)
         }
     }
 }
