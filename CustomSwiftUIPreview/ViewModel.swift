@@ -77,11 +77,22 @@ class ViewModel {
     let ViewBodyNamePattern = /struct\s+(\w+):/
     
     var logs: [String] = []
+    var isCompiling = false
+    
     private var loadedLibraryHandles: [UnsafeMutableRawPointer] = []
+    private var compileTask: Task<Void, Never>?
     
     
     public func compile() {
+        compileTask?.cancel()
+        compileTask = Task { await compilePreview() }
+    }
+    
+    private func compilePreview() async {
         guard let ViewBodyName = getViewBodyName() else { return }
+        isCompiling = true
+        defer { isCompiling = false }
+        
         previewView = nil
         logs.append("Compiling View Body: \(ViewBodyName)")
         let previewFactoryStructure = getPreviewFactoryStructure(ViewBodyName)
@@ -180,7 +191,7 @@ class ViewModel {
         logs.append("Preview package path: \(swiftUIPreviewFolder.path)")
         
         /// Build Package
-        guard buildPreviewPackage(at: swiftUIPreviewFolder) else { return }
+        guard await buildPreviewPackage(at: swiftUIPreviewFolder) else { return }
         
         let dylibURL = swiftUIPreviewFolder
             .appendingPathComponent(".build")
@@ -198,7 +209,7 @@ extension ViewModel {
     /// Returns true if everything goes well
     private func buildPreviewPackage(
         at packageURL: URL
-    ) -> Bool {
+    ) async -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/swift")
         process.arguments = ["build", "--package-path", packageURL.path]
@@ -207,17 +218,43 @@ extension ViewModel {
         process.standardOutput = pipe
         process.standardError = pipe
         
+        /// AsyncStream lets us bridge FileHandle's callback-style readabilityHandler
+        /// into a normal async for-await loop. That means the UI can keep updating
+        /// while swift build is still running.
+        let buildOutputStream = AsyncStream<String> { continuation in
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                
+                guard !data.isEmpty else {
+                    continuation.finish()
+                    return
+                }
+                
+                if let output = String(data: data, encoding: .utf8), !output.isEmpty {
+                    continuation.yield(output)
+                }
+            }
+            
+            process.terminationHandler = { _ in
+                pipe.fileHandleForReading.readabilityHandler = nil
+                continuation.finish()
+            }
+        }
+        
         do {
             /// Build Swift Package
             try process.run()
-            process.waitUntilExit()
         } catch {
             logs.append("Failed to start swift build: \(error.localizedDescription)")
             return false
         }
         
-        let output = pipe.fileHandleForReading.readDataToEndOfFile()
-        if let buildLog = String(data: output, encoding: .utf8), !buildLog.isEmpty {
+        for await buildLog in buildOutputStream {
+            guard !Task.isCancelled else {
+                process.terminate()
+                return false
+            }
+            
             logs.append(buildLog)
         }
         

@@ -48,7 +48,10 @@ struct ContentView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(vm.allowEdit ? "Disable Edit" : "Allow Edit") { vm.allowEdit.toggle() }
                 Button(vm.vimEnabled ? "Disable Vim" : "Enable Vim") { vm.vimEnabled.toggle() }
-                Button { vm.compile() } label: { Image(systemName: "play.fill") }
+                Button { vm.compile() } label: {
+                    Image(systemName: vm.isCompiling ? "hourglass" : "play.fill")
+                }
+                .disabled(vm.isCompiling)
             }
         }
     }
