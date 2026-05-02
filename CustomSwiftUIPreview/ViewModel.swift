@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import Darwin
 
 @Observable
 @MainActor
@@ -22,13 +23,6 @@ class ViewModel {
         
         var body: some View {
             ZStack {
-                LinearGradient(
-                    colors: [.black, .indigo.opacity(0.8), .purple.opacity(0.5)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-                
                 VStack(spacing: 22) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 52, weight: .bold))
@@ -78,17 +72,20 @@ class ViewModel {
     var magnification: CGFloat = 1.0
     var allowEdit = true
     var vimEnabled = true
+    var previewView: NSView?
     
     let ViewBodyNamePattern = /struct\s+(\w+):/
     
     var logs: [String] = []
+    private var loadedLibraryHandles: [UnsafeMutableRawPointer] = []
     
     
     public func compile() {
         guard let ViewBodyName = getViewBodyName() else { return }
+        previewView = nil
         logs.append("Compiling View Body: \(ViewBodyName)")
-        let mainAppStructure = getMainAppStructure(ViewBodyName)
-        logs.append("Created Main App Structure: \n\(mainAppStructure)")
+        let previewFactoryStructure = getPreviewFactoryStructure(ViewBodyName)
+        logs.append("Created Preview Factory")
         let packageDotSwiftStructure = getPackageDotSwiftFile("PreviewApp")
         
         /// Now We Can Make 2 Files
@@ -96,9 +93,9 @@ class ViewModel {
             .appendingPathComponent("\(ViewBodyName).swift")
         logs.append("Created View File: \(ViewFile.path)")
         
-        let AppFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(ViewBodyName)App.swift")
-        logs.append("Created App File: \(AppFile.path)")
+        let PreviewFactoryFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PreviewFactory.swift")
+        logs.append("Created Preview Factory File: \(PreviewFactoryFile.path)")
         
         let PackageSwiftFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("Package.swift")
@@ -125,12 +122,12 @@ class ViewModel {
             return
         }
         
-        /// Create App File
+        /// Create Preview Factory File
         do {
-            try write(to: AppFile, content: mainAppStructure)
-            logs.append("Wrote To Main App File")
+            try write(to: PreviewFactoryFile, content: previewFactoryStructure)
+            logs.append("Wrote To Preview Factory File")
         } catch {
-            logs.append("Error Writing To Main App File")
+            logs.append("Error Writing To Preview Factory File")
             return
         }
         
@@ -163,7 +160,7 @@ class ViewModel {
         }
         
         
-        /// Move ViewFile and AppFile into Folder
+        /// Move ViewFile and PreviewFactoryFile into Folder
         do {
             try FileManager.default.moveItem(at: ViewFile, to: previewAppFolder.appendingPathComponent("\(ViewBodyName).swift"))
             logs.append("Moved View File Into Preview App Folder")
@@ -173,18 +170,112 @@ class ViewModel {
         }
         
         do {
-            try FileManager.default.moveItem(at: AppFile, to: previewAppFolder.appendingPathComponent("\(ViewBodyName)App.swift"))
-            logs.append("Moved Main App Structure File Into Preview App Folder")
+            try FileManager.default.moveItem(at: PreviewFactoryFile, to: previewAppFolder.appendingPathComponent("PreviewFactory.swift"))
+            logs.append("Moved Preview Factory Into Preview App Folder")
         } catch {
-            logs.append("Error Moving Main App Structure Into Preview FOlder")
+            logs.append("Error Moving Preview Factory Into Preview Folder")
             return
         }
         
-        print("Full Path URL: \(swiftUIPreviewFolder.path)")
-        NSWorkspace.shared.open(swiftUIPreviewFolder.appendingPathComponent("Package.swift"))
+        logs.append("Preview package path: \(swiftUIPreviewFolder.path)")
+        
+        /// Build Package
+        guard buildPreviewPackage(at: swiftUIPreviewFolder) else { return }
+        
+        let dylibURL = swiftUIPreviewFolder
+            .appendingPathComponent(".build")
+            .appendingPathComponent("debug")
+        /// the actual dynamic library we can load in
+            .appendingPathComponent("libPreviewApp.dylib")
+        
+        loadPreview(from: dylibURL)
     }
 }
 
+// MARK: - Build/Preview
+extension ViewModel {
+    /// Function Builds the Swift Package
+    /// Returns true if everything goes well
+    private func buildPreviewPackage(
+        at packageURL: URL
+    ) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/swift")
+        process.arguments = ["build", "--package-path", packageURL.path]
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        
+        do {
+            /// Build Swift Package
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            logs.append("Failed to start swift build: \(error.localizedDescription)")
+            return false
+        }
+        
+        let output = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let buildLog = String(data: output, encoding: .utf8), !buildLog.isEmpty {
+            logs.append(buildLog)
+        }
+        
+        guard process.terminationStatus == 0 else {
+            logs.append("swift build failed with exit code \(process.terminationStatus)")
+            return false
+        }
+        
+        logs.append("swift build succeeded")
+        return true
+    }
+    
+    private func loadPreview(from dylibURL: URL) {
+        /// SwiftPM should have produced libPreviewApp.dylib at this path.
+        /// If the file is missing, the build either failed earlier or SwiftPM changed
+        /// the output location/name we are assuming.
+        guard FileManager.default.fileExists(atPath: dylibURL.path) else {
+            logs.append("Built dylib not found at: \(dylibURL.path)")
+            return
+        }
+        
+        guard let handle = dlopen(dylibURL.path, RTLD_NOW | RTLD_LOCAL) else {
+            logs.append("dlopen failed: \(String(cString: dlerror()))")
+            return
+        }
+        
+        /// The generated PreviewFactory.swift exports this exact C symbol:
+        /// @_cdecl("makePreviewView").
+        /// dlsym finds the raw function pointer for that exported symbol inside the dylib.
+        guard let symbol = dlsym(handle, "makePreviewView") else {
+            logs.append("Could not find makePreviewView symbol")
+            return
+        }
+        
+        /// This type must match the generated function signature exactly:
+        /// @convention(c) is required because @_cdecl exports a C-callable function.
+        typealias MakePreviewView = @convention(c) () -> UnsafeMutableRawPointer
+        
+        /// Codex - This is unsafe by nature: if the symbol has a different signature, the app can crash.
+        let makePreviewView = unsafeBitCast(symbol, to: MakePreviewView.self)
+        
+        let pointer = makePreviewView()
+        
+        // Convert the opaque retained pointer back into a real NSView.
+        // takeRetainedValue balances passRetained from the generated dylib, so ARC now owns it.
+        previewView = Unmanaged<NSView>.fromOpaque(pointer).takeRetainedValue()
+        
+        // Keep the dlopen handle alive for the lifetime of the preview.
+        // If we closed/unloaded the dylib while previewView still contains Swift types from it,
+        // the app would be at high risk of crashing. For this MVP, we intentionally retain
+        // loaded preview libraries until the app exits.
+        loadedLibraryHandles.append(handle)
+        logs.append("Loaded preview dylib")
+    }
+
+}
+
+// MARK: - Code Generation
 extension ViewModel {
     /// Function Extracts the view body name
     /// lets say for example we have:
@@ -209,19 +300,19 @@ extension ViewModel {
         return nil
     }
     
-    /// Function returns a string which represents
-    /// a swiftui lifecycle
-    public func getMainAppStructure(_ ViewBodyName: String) -> String {
+    /// The key part that makes it all work
+    /// Function returns a string which exports the preview as an AppKit view.
+    /// we pass this back as a opaque pointer through a C symbol
+    /// then conversion stuff bam -> live NSView inside app
+    public func getPreviewFactoryStructure(_ ViewBodyName: String) -> String {
         return """
-        import SwiftUI 
-        
-        @main
-        struct CustomSwiftUIPreviewApp: App {
-            var body: some Scene {
-                WindowGroup {
-                    \(ViewBodyName)()
-                }
-            }
+        import SwiftUI
+        import AppKit
+
+        @_cdecl("makePreviewView")
+        public func makePreviewView() -> UnsafeMutableRawPointer {
+            let view = NSHostingView(rootView: \(ViewBodyName)())
+            return Unmanaged.passRetained(view).toOpaque()
         }
         """
     }
@@ -238,19 +329,17 @@ extension ViewModel {
         let package = Package(
             name: "\(PackageName)",
             platforms: [
-                /// Most Likely Fine
-                .macOS(.v15),
-                /// Change This To Whatever Needed
-                .iOS(.v17)
+                .macOS(.v15)
             ],
             products: [
-                .executable(
+                .library(
                     name: "\(PackageName)",
+                    type: .dynamic,
                     targets: ["\(PackageName)"]
                 ),
             ],
             targets: [
-                .executableTarget(
+                .target(
                     name: "\(PackageName)"
                 ),
             ]
@@ -259,6 +348,7 @@ extension ViewModel {
     }
 }
 
+// MARK: - URL Stuff
 extension ViewModel {
     private func createFolder(named name: String, inside parent: URL) throws -> URL {
         let folderURL = parent.appendingPathComponent(name)

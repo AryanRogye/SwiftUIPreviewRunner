@@ -7,6 +7,7 @@
 
 import SwiftUI
 import TextEditor
+import AppKit
 
 struct ContentView: View {
     
@@ -14,7 +15,6 @@ struct ContentView: View {
     
     var body: some View {
         VStack {
-            Button("Compile") { vm.compile() }
             HSplitView {
                 ComfyTextEditor(
                     text: $vm.text,
@@ -22,13 +22,20 @@ struct ContentView: View {
                     allowEdit: $vm.allowEdit,
                     isInVimMode: $vm.vimEnabled
                 )
-                List {
-                    ForEach(vm.logs, id: \.self) { log in
-                        Text(log)
-                            .textSelection(.enabled)
+                
+                VSplitView {
+                    PreviewHostView(previewView: vm.previewView)
+                        .frame(minWidth: 360, minHeight: 320)
+                    
+                    List {
+                        ForEach(vm.logs, id: \.self) { log in
+                            Text(log)
+                                .textSelection(.enabled)
+                        }
                     }
+                    .frame(minHeight: 160)
                 }
-                .frame(minWidth: 250, maxWidth: 250)
+                .frame(minWidth: 420)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
@@ -41,6 +48,7 @@ struct ContentView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(vm.allowEdit ? "Disable Edit" : "Allow Edit") { vm.allowEdit.toggle() }
                 Button(vm.vimEnabled ? "Disable Vim" : "Enable Vim") { vm.vimEnabled.toggle() }
+                Button { vm.compile() } label: { Image(systemName: "play.fill") }
             }
         }
     }
