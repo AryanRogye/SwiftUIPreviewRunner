@@ -11,24 +11,29 @@ import AppKit
 
 struct ContentView: View {
     
+    @State private var chatVM = ChatViewModel()
     @State private var vm = ViewModel()
+    @State private var editorID = UUID()
     
     var body: some View {
         VStack {
             HSplitView {
+                ChatSidebar(vm: chatVM)
+                
                 ComfyTextEditor(
                     text: $vm.text,
                     magnification: $vm.magnification,
                     allowEdit: $vm.allowEdit,
                     isInVimMode: $vm.vimEnabled
                 )
+                .id(editorID)
                 
                 VSplitView {
                     PreviewHostView(previewView: vm.previewView)
                         .frame(minWidth: 360, minHeight: 320)
                     
                     List {
-                        ForEach(vm.logs, id: \.self) { log in
+                        ForEach(Array(vm.logs.enumerated()), id: \.offset) { _, log in
                             Text(log)
                                 .textSelection(.enabled)
                         }
@@ -46,6 +51,14 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Picker("Codex Model", selection: $chatVM.selectedModel) {
+                    ForEach(CodexModel.allCases) { model in
+                        Text(model.displayName).tag(model)
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(chatVM.sendingMessage)
+                
                 Button(vm.allowEdit ? "Disable Edit" : "Allow Edit") { vm.allowEdit.toggle() }
                 Button(vm.vimEnabled ? "Disable Vim" : "Enable Vim") { vm.vimEnabled.toggle() }
                 Button { vm.compile() } label: {
@@ -53,6 +66,15 @@ struct ContentView: View {
                 }
                 .disabled(vm.isCompiling)
             }
+        }
+        .task {
+            chatVM.setSwiftUIViewBodyAccess(
+                reader: { vm.text },
+                writer: { text in
+                    vm.text = text
+                    editorID = UUID()
+                }
+            )
         }
     }
 }
