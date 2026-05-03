@@ -1,5 +1,5 @@
 //
-//  ChatMessage.swift
+//  MessageRepresentable.swift
 //  ComfyPilot
 //
 //  Created by Aryan Rogye on 4/24/26.

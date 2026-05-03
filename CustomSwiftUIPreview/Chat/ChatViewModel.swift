@@ -70,6 +70,7 @@ extension ChatViewModel {
         
         /// set flag to true
         sendingMessage = true
+        let conversationHistory = recentConversationHistory()
         
         /// Creates Users Message
         self.addUserMessage(trimmed)
@@ -86,6 +87,7 @@ extension ChatViewModel {
                 let response = try await codexService.send(
                     prompt: trimmed,
                     currentSwiftSource: currentSwiftSource,
+                    conversationHistory: conversationHistory,
                     model: selectedModel
                 )
                 
@@ -137,5 +139,18 @@ extension ChatViewModel {
                 content: content
             )
         )
+    }
+    
+    private func recentConversationHistory(limit: Int = 12) -> [CodexConversationMessage] {
+        messages
+            .compactMap { $0 as? ChatMessage }
+            .filter { $0.role == .user || $0.role == .assistant }
+            .suffix(limit)
+            .map { message in
+                CodexConversationMessage(
+                    role: message.role,
+                    content: message.content
+                )
+            }
     }
 }
