@@ -73,6 +73,7 @@ extension ChatViewModel {
         
         /// Creates Users Message
         self.addUserMessage(trimmed)
+        self.addSystemMessage("Using \(selectedModel.displayName)")
         
         Task {
             defer {
@@ -124,6 +125,15 @@ extension ChatViewModel {
         messages.append(
             ChatMessage(
                 role: .assistant,
+                content: content
+            )
+        )
+    }
+    
+    private func addSystemMessage(_ content: String) {
+        messages.append(
+            ChatMessage(
+                role: .system,
                 content: content
             )
         )
