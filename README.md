@@ -19,6 +19,13 @@ https://github.com/user-attachments/assets/a2ee16cb-e0dc-4835-beb9-346665d76fd6
 
 Previews are compiled and loaded into the host app process. Do not run untrusted Swift code with this tool.
 
+## Tauri Integration
+
+The preview engine can be embedded inside a Tauri app, allowing a web-based UI to control a fully native SwiftUI preview renderer.
+
+<img width="1512" height="949" alt="Screenshot 2026-05-02 at 9 41 36 PM" src="https://github.com/user-attachments/assets/a810003d-c8aa-4c6f-bc41-5d52fb97b5b5" />
+
+
 ## License
 
 MIT License. See [LICENSE](LICENSE).
