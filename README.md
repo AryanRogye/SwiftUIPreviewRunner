@@ -4,7 +4,9 @@ SwiftUI playground without Xcode
 
 Paste SwiftUI code → compiles → runs as preview app.
 
-Proof of concept for in-app SwiftUI live previews.
+Xcode previews are powerful, but they are tied to Xcode projects and can feel heavy for quick UI experiments. This explores a faster feedback loop for testing small SwiftUI views in isolation.
+
+Note: This started as a proof of concept while building another app. I'm sharing it because the core idea worked and others might find it useful or want to build on it. Not sure where it goes from here. open to ideas.
 
 This recording is from an earlier version, before the workflow was made async. The current version now runs asynchronously, so the UI no longer blocks during execution
 
