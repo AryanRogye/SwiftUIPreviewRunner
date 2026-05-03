@@ -11,6 +11,7 @@ import AppKit
 
 struct ContentView: View {
     
+    @AppStorage("showChatSidebar") private var showChatSidebar = true
     @State private var chatVM = ChatViewModel()
     @State private var vm = ViewModel()
     @State private var editorID = UUID()
@@ -18,7 +19,10 @@ struct ContentView: View {
     var body: some View {
         VStack {
             HSplitView {
-                ChatSidebar(vm: chatVM)
+                if showChatSidebar {
+                    ChatSidebar(vm: chatVM)
+                        .frame(minWidth: 280)
+                }
                 
                 ComfyTextEditor(
                     text: $vm.text,
@@ -51,13 +55,22 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Picker("Codex Model", selection: $chatVM.selectedModel) {
-                    ForEach(CodexModel.allCases) { model in
-                        Text(model.displayName).tag(model)
-                    }
+                Button {
+                    showChatSidebar.toggle()
+                } label: {
+                    Image(systemName: "sidebar.left")
                 }
-                .pickerStyle(.menu)
-                .disabled(chatVM.sendingMessage)
+                .help(showChatSidebar ? "Hide Chat" : "Show Chat")
+                
+                if showChatSidebar {
+                    Picker("Codex Model", selection: $chatVM.selectedModel) {
+                        ForEach(CodexModel.allCases) { model in
+                            Text(model.displayName).tag(model)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(chatVM.sendingMessage)
+                }
                 
                 Button(vm.allowEdit ? "Disable Edit" : "Allow Edit") { vm.allowEdit.toggle() }
                 Button(vm.vimEnabled ? "Disable Vim" : "Enable Vim") { vm.vimEnabled.toggle() }
