@@ -1,0 +1,185 @@
+:root {
+  color: #202124;
+  background: #e7e8ea;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 760px;
+  min-height: 100vh;
+}
+
+button {
+  border: 1px solid #b8bdc6;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #202124;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+button:hover:not(:disabled) {
+  border-color: #697386;
+}
+
+button:disabled {
+  color: #8b9099;
+  cursor: default;
+}
+
+.toolbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.mode-button {
+  min-width: 76px;
+}
+
+.mode-button.is-active {
+  background: #243145;
+  border-color: #243145;
+  color: #ffffff;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.toolbar {
+  align-items: center;
+  background: #f5f6f7;
+  border-bottom: 1px solid #cdd1d8;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  padding: 10px 14px;
+}
+
+.toolbar h1 {
+  font-size: 15px;
+  line-height: 20px;
+  margin: 0;
+}
+
+.toolbar p {
+  color: #626a73;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0;
+}
+
+.workspace {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 1px;
+  grid-template-columns: minmax(340px, 1fr) minmax(360px, 0.85fr);
+  min-height: 0;
+}
+
+.editor-pane,
+.right-pane,
+.preview-pane,
+.logs-pane {
+  min-height: 0;
+}
+
+.editor-pane,
+.preview-pane,
+.logs-pane {
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+}
+
+.right-pane {
+  display: grid;
+  gap: 1px;
+  grid-template-rows: minmax(260px, 1fr) minmax(130px, 0.35fr);
+}
+
+.pane-header {
+  align-items: center;
+  background: #eceff3;
+  border-bottom: 1px solid #cdd1d8;
+  color: #464d57;
+  display: flex;
+  flex: 0 0 32px;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: space-between;
+  padding: 0 10px;
+}
+
+.vim-status {
+  color: #5b6470;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  min-width: 74px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-host {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.editor-host .monaco-editor,
+.editor-host .monaco-editor-background,
+.editor-host .monaco-editor .margin {
+  background-color: #101418;
+}
+
+.preview-host {
+  background:
+    linear-gradient(45deg, #d8dce2 25%, transparent 25%),
+    linear-gradient(-45deg, #d8dce2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d8dce2 75%),
+    linear-gradient(-45deg, transparent 75%, #d8dce2 75%);
+  background-color: #edf0f3;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-size: 16px 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.logs-pane pre {
+  color: #28313d;
+  flex: 1 1 auto;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 17px;
+  margin: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}
