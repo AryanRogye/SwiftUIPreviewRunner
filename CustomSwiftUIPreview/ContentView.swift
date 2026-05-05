@@ -28,7 +28,8 @@ struct ContentView: View {
                     text: $vm.text,
                     magnification: $vm.magnification,
                     allowEdit: $vm.allowEdit,
-                    isInVimMode: $vm.vimEnabled
+                    isInVimMode: $vm.vimEnabled,
+                    syntaxHighlighting: .swift
                 )
                 .id(editorID)
                 
